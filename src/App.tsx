@@ -10,8 +10,6 @@ const App = () => {
   const wallet = usePandaWallet();
   const [connected, setConnected] = useState<boolean>(false);
   const [signer, setSigner] = useState<PandaSigner>();
-  const [payAddress, setPayAddress] = useState<bsv.Address>();
-  const [ordAddress, setOrdAddress] = useState<bsv.Address>();
   const [tab, setTab] = useState<string>("mine");
 
   const handleTabClick = (selectedTab: string) => {
@@ -27,8 +25,6 @@ const App = () => {
     if (!isAuthenticated) {
       throw new Error(`Unauthenticated: ${error}`)
     }
-    setPayAddress(await signer.getDefaultAddress())  // <----
-    setOrdAddress(await signer.getOrdAddress())
 
     // await OpNS.loadArtifact(artifact)
     setConnected(true);
@@ -65,8 +61,8 @@ const App = () => {
             </div>
             <div className="p-10">
             { tab === 'mine' ?
-              <Mine /> :
-              <Inventory />
+              <Mine signer={signer}/> :
+              <Inventory  signer={signer}/>
             }
             </div>
           </div>)

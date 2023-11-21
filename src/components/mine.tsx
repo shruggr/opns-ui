@@ -1,6 +1,10 @@
 import React, { useState } from 'react';
+import { PandaSigner } from "scrypt-ts/dist/bsv/signers/panda-signer"
 
-const Mine = () => {
+type MineProps = {
+    signer: PandaSigner | undefined
+}
+const Mine = (props: MineProps) => {
     const [searchTerm, setSearchTerm] = useState('');
 
     const handleSubmit = (event: React.FormEvent) => {
