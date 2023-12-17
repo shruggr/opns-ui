@@ -3,12 +3,11 @@ import { usePandaWallet } from 'panda-wallet-provider';
 import { bsv } from "scrypt-ts";
 import { PandaSCryptProvider } from "./panda-scrypt-provider";
 import { useState } from 'react';
-import Mine from "./components/mine";
+import Search from "./components/search";
 import Inventory from "./components/inventory";
 
 const App = () => {
   const wallet = usePandaWallet();
-  const [connected, setConnected] = useState<boolean>(false);
   const [signer, setSigner] = useState<PandaSigner>();
   const [tab, setTab] = useState<string>("mine");
 
@@ -25,9 +24,6 @@ const App = () => {
     if (!isAuthenticated) {
       throw new Error(`Unauthenticated: ${error}`)
     }
-
-    // await OpNS.loadArtifact(artifact)
-    setConnected(true);
   };
 
   return (
@@ -40,8 +36,10 @@ const App = () => {
       <main className="flex-col h-screen w-full">
         <div className="p-10 w-1/2">
         {
-          !connected ?
-          (<button className="btn" onClick={connect}>Connect</button>) :
+          !signer ?
+          (<button className="btn btn-outline" onClick={connect}>
+            <img src="/logo192.png" alt="Connect to Panda"/>
+          </button>) :
           (<div>
             <div role="tablist" className="tabs tabs-bordered">
               <div
@@ -61,7 +59,7 @@ const App = () => {
             </div>
             <div className="p-10">
             { tab === 'mine' ?
-              <Mine signer={signer}/> :
+              <Search signer={signer}/> :
               <Inventory  signer={signer}/>
             }
             </div>
