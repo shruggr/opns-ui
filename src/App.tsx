@@ -5,6 +5,7 @@ import { PandaSCryptProvider } from "./panda-scrypt-provider";
 import { useState } from 'react';
 import Search from "./components/search";
 import Inventory from "./components/inventory";
+import { OrdiProvider } from "scrypt-ord";
 
 const App = () => {
   const wallet = usePandaWallet();
@@ -17,7 +18,9 @@ const App = () => {
   
   const connect = async () => {
     // await wallet.connect()
-    const provider = new PandaSCryptProvider(wallet, bsv.Networks.testnet)
+
+    // const provider = new PandaSCryptProvider(wallet, bsv.Networks.testnet)
+    const provider = new OrdiProvider(bsv.Networks.mainnet)
     const signer = new PandaSigner(provider)   // <---- use `PandaSigner`
     const { isAuthenticated, error } = await signer.requestAuth()
     setSigner(signer)

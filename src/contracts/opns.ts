@@ -57,7 +57,7 @@ export class OpNS extends SmartContract {
         lock: ByteString,
         trailingOutputs: ByteString
     ) {
-        if (len(this.id) === 0n) {
+        if (len(this.id) == 0n) {
             this.id =
                 this.ctx.utxo.outpoint.txid +
                 int2ByteString(this.ctx.utxo.outpoint.outputIndex, 4n)
@@ -75,7 +75,7 @@ export class OpNS extends SmartContract {
         const outputs: ByteString =
             selfOutput + spawnOutput + tokenOutput + trailingOutputs
         assert(
-            hash256(outputs) === this.ctx.hashOutputs,
+            hash256(outputs) == this.ctx.hashOutputs,
             'invalid outputs hash '
             // + selfOutput + ' ' + spawnOutput + ' ' + tokenOutput + ' ' + trailingOutputs
         )
@@ -86,7 +86,7 @@ export class OpNS extends SmartContract {
         const pow = hash256(this.pow + int2ByteString(char) + nonce)
         // console.log('pow: ', pow)
         const test = rshift(Utils.fromLEUnsigned(pow), 256n - this.difficulty)
-        assert(test === 0n, pow + ' invalid pow')
+        assert(test == 0n, pow + ' invalid pow')
         return pow
     }
 
@@ -94,12 +94,12 @@ export class OpNS extends SmartContract {
     validateChar(char: bigint): bigint {
         // -, 0-9, a-z
         const valid =
-            char === 45n ||
+            char == 45n ||
             (char >= 48n && char < 58n) ||
             (char >= 97n && char < 123n)
         assert(valid, 'invalid char')
         const mask = lshift(1n, char)
-        assert(and(mask, this.claimed) === 0n, 'char already claimed')
+        assert(and(mask, this.claimed) == 0n, 'char already claimed')
         return this.claimed + mask
     }
 
@@ -132,12 +132,12 @@ export class OpNS extends SmartContract {
         char: bigint,
         nonce: ByteString,
         lock: ByteString,
-        trailingOutputs: ByteString
+        trailingOutputs: ByteString,
     ): Promise<ContractTransaction> {
         const nextInstance = current.next()
         // console.log('current.id: ', current.id)
         nextInstance.pow = nextInstance.validatePOW(char, nonce)
-        if (len(current.id) === 0n) {
+        if (len(current.id) == 0n) {
             nextInstance.id =
                 reverseByteString(toByteString(options.fromUTXO!.txId), 32n) +
                 int2ByteString(BigInt(options.fromUTXO!.outputIndex), 4n)
@@ -152,9 +152,14 @@ export class OpNS extends SmartContract {
             nextInstance.buildInscription(lock)
         )
 
-        const unsignedTx: bsv.Transaction = new bsv.Transaction()
+        // console.log('selfScript: ', selfScript.toHex())
+        // console.log('spawnScript: ', spawnScript.toHex())
+        // console.log('inscriptionScript: ', inscriptionScript.toHex())
+
+        const unsignedTx: bsv.Transaction = options.partialContractTx?.tx || new bsv.Transaction()
+
             // add contract input
-            .addInput(current.buildContractInput(options.fromUTXO))
+        unsignedTx.addInput(current.buildContractInput(options.fromUTXO))
             // build next instance output
             .addOutput(
                 new bsv.Transaction.Output({
@@ -176,20 +181,21 @@ export class OpNS extends SmartContract {
                 })
             )
 
+
         if (trailingOutputs) {
-            unsignedTx.addOutput(
-                bsv.Transaction.Output.fromBufferReader(
-                    new bsv.encoding.BufferReader(
-                        Buffer.from(trailingOutputs, 'hex')
-                    )
-                )
+            const br = new bsv.encoding.BufferReader(
+                Buffer.from(trailingOutputs, 'hex')
             )
+            while (br.remaining() > 0) {
+                const output = bsv.Transaction.Output.fromBufferReader(br)
+                unsignedTx.addOutput(output)
+            }
         }
 
         // console.log('unsignedTx: ', unsignedTx.toBuffer().toString('hex'))
         return Promise.resolve({
             tx: unsignedTx,
-            atInputIndex: 0,
+            atInputIndex: options.partialContractTx ? 1 : 0,
             nexts: [],
         })
     }

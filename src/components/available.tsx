@@ -4,7 +4,9 @@ import { useState } from "react";
 import { OpNS } from "../contracts/opns";
 import artifact from '../../artifacts/opns.json'
 import { usePandaWallet } from "panda-wallet-provider";
+import { PandaSCryptProvider } from "../panda-scrypt-provider";
 
+const FEE = 25;
 const Available = (props: { name: string, signer?: PandaSigner }) => {
     const [miner, setMiner] = useState<Worker | undefined>();
     const [attempts, setAttempts] = useState<number>(0);
@@ -63,39 +65,73 @@ const Available = (props: { name: string, signer?: PandaSigner }) => {
                 script: Buffer.from(txo.script!, 'base64').toString('hex'),
                 satoshis: txo!.satoshis,
             })
-            
-            await opNS.connect(props.signer!)
-            opNS.bindTxBuilder('mint', OpNS.mintTxBuilder)
-            const bsvAddress = await props.signer!.getDefaultAddress()
-            const ordAddress = await props.signer!.getOrdAddress()
-            const utxos = await props.signer!.provider!.listUnspent(bsvAddress)
-            const utxo = utxos.find(utxo => utxo.satoshis > 1000)
-            const changeOutput = utxo!.satoshis > 1000 ?
-                new bsv.Transaction.Output({
-                    script: bsv.Script.buildPublicKeyHashOut(bsvAddress),
-                    satoshis: utxo!.satoshis - 1000,
-                }).toBufferWriter().toBuffer().toString('hex') : 
-                '';
 
-            const { tx: callTx, atInputIndex } = await opNS.methods.mint(
-                BigInt(char.charCodeAt(0)),
-                toByteString(Buffer.from(nonce).toString('hex')),
-                toByteString(bsv.Script.fromAddress(ordAddress).toHex()),
-                toByteString(changeOutput),
-                {
-                  fromUTXO: opNS.utxo,
-                  partiallySigned: true,
-                  autoPayFee: false,
-                } as MethodCallOptions<OpNS>
-              );
-        
-              let result = callTx.verifyScript(atInputIndex);
-              console.log("Result:", result);
-              callTx.from(utxo!);
-              result = callTx.verifyScript(atInputIndex);
-              console.log("Result:", result);
-              const response = await wallet.broadcast({rawtx: callTx.serialize()})
-              console.log(response)
+            try {
+                if (!(await wallet.isConnected())) {
+                    await wallet.connect()
+                }
+                // await wallet.connect()
+                // const provider = new PandaSCryptProvider(wallet, bsv.Networks.mainnet)
+                // const signer = new PandaSigner(provider)   // <---- use `PandaSigner`
+                // const { isAuthenticated, error } = await signer.requestAuth()
+                // if (!isAuthenticated) {
+                //     throw new Error(`Unauthenticated: ${error}`)
+                // }
+                const signer = props.signer!
+
+                await opNS.connect(signer!)
+                opNS.bindTxBuilder('mint', OpNS.mintTxBuilder)
+                const bsvAddress = await signer.getDefaultAddress()
+                const ordAddress = await signer!.getOrdAddress()
+                const utxos = await signer!.provider!.listUnspent(bsvAddress)
+                const utxo = utxos.find(utxo => utxo.satoshis > FEE)
+                const changeOutput = utxo!.satoshis > FEE ?
+                    new bsv.Transaction.Output({
+                        script: bsv.Script.buildPublicKeyHashOut(bsvAddress),
+                        satoshis: utxo!.satoshis - FEE,
+                    }).toBufferWriter().toBuffer().toString('hex') :
+                    '';
+
+                const tx = new bsv.Transaction();
+                tx.from(utxo!);
+
+                const { tx: callTx, atInputIndex } = await opNS.methods.mint(
+                    BigInt(char.charCodeAt(0)),
+                    toByteString(Buffer.from(nonce).toString('hex')),
+                    toByteString(bsv.Script.fromAddress(ordAddress).toHex()),
+                    toByteString(changeOutput),
+                    {
+                        // partiallySigned: true,
+                        partialContractTx: {
+                            atInputIndex: 0,
+                            tx,
+                        },
+                        pubKeyOrAddrToSign: bsvAddress
+                    } as MethodCallOptions<OpNS>
+                );
+
+                let result = callTx.verifyScript(atInputIndex);
+                console.log("Result:", callTx.id, result, callTx.serialize());
+                const resp = await fetch('https://ordinals.gorillapool.io/api/tx/bin', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/octet-stream',
+                    },
+                    body: callTx.toBuffer(),
+                })
+
+                if (!resp.ok) {
+                    throw new Error('Failed to broadcast transaction')
+                } else {
+
+                }
+
+                //   const response = await wallet.broadcast({rawtx: callTx.serialize()})
+                console.log(await resp.json())
+            } catch (e) {
+                console.error(e)
+                return
+            }
         }
     }
     return (
@@ -113,7 +149,7 @@ const Available = (props: { name: string, signer?: PandaSigner }) => {
                     </div>
                 </div>
             </div>
-            {!attempts ? '' : nonce ? 
+            {!attempts ? '' : nonce ?
                 (<div>{nonceStr}</div>) :
                 (<Mining miner={miner!} name={name} attempts={attempts} />)}
 
